@@ -124,7 +124,10 @@ def ir_merge_and_sum_by_county(script_dir, df):
     file_name="IR_huc12_to_us_counties.csv"
     file_path=os.path.join(script_dir, file_name)
     df_crosswalk = fast_read_csv(file_path)
+    #convert huc12 columns of ir to single column for each huc12, year, month
     df = pd.melt(df, id_vars=['year', 'month'], var_name='huc12', value_name='wd_mgd')
+    #remove no data flags
+    df.replace([999, 888], np.NaN, inplace=True)
     df['period'] = pd.PeriodIndex(year=df['year'], month=df['month'], freq='M')
     df.set_index('period', inplace=True)
     df['days_in_month'] = df.index.days_in_month
@@ -133,13 +136,14 @@ def ir_merge_and_sum_by_county(script_dir, df):
         'wd_mgd': 'sum',  # Sum the 'wd_gpd' values
         'days_in_month': 'first'  # Keep the first value of 'days_in_month' for each group
     }).reset_index()
+    # convert back to mg per month
+    df['wd_mgd'] = df['wd_mgd'] / 12.
     df['wd_mgd'] = df['wd_mgd'] / df['days_in_month']
     merged_df = df_crosswalk.merge(df, on='huc12', how='inner')
-    merged_df.replace([999, 888], np.NaN, inplace=True)
     # Columns to keep
     for year in range(2000, 2021):
         frac_column = f"frac_area_{year}"
-        wd_column = f"wd_mgd_{year}"
+        wd_column = f"wdmgd{year}"
 
         # Multiply the fraction column by the wd_mgd column
         merged_df[wd_column] = merged_df[frac_column] * merged_df['wd_mgd']
@@ -150,27 +154,27 @@ def ir_merge_and_sum_by_county(script_dir, df):
     merged_df['county_geoid'] = merged_df['county_geoid'].astype(str)
     # Order the rows by ascending order of the 'year' column
     merged_df = merged_df.groupby(['county_geoid', 'county_name']).agg({
-        'wd_mgd_2000': 'sum',
-        'wd_mgd_2001': 'sum',
-        'wd_mgd_2002': 'sum',
-        'wd_mgd_2003': 'sum',
-        'wd_mgd_2004': 'sum',
-        'wd_mgd_2005': 'sum',
-        'wd_mgd_2006': 'sum',
-        'wd_mgd_2007': 'sum',
-        'wd_mgd_2008': 'sum',
-        'wd_mgd_2009': 'sum',
-        'wd_mgd_2010': 'sum',
-        'wd_mgd_2011': 'sum',
-        'wd_mgd_2012': 'sum',
-        'wd_mgd_2013': 'sum',
-        'wd_mgd_2014': 'sum',
-        'wd_mgd_2015': 'sum',
-        'wd_mgd_2016': 'sum',
-        'wd_mgd_2017': 'sum',
-        'wd_mgd_2018': 'sum',
-        'wd_mgd_2019': 'sum',
-        'wd_mgd_2020': 'sum'
+        'wdmgd2000': 'sum',
+        'wdmgd2001': 'sum',
+        'wdmgd2002': 'sum',
+        'wdmgd2003': 'sum',
+        'wdmgd2004': 'sum',
+        'wdmgd2005': 'sum',
+        'wdmgd2006': 'sum',
+        'wdmgd2007': 'sum',
+        'wdmgd2008': 'sum',
+        'wdmgd2009': 'sum',
+        'wdmgd2010': 'sum',
+        'wdmgd2011': 'sum',
+        'wdmgd2012': 'sum',
+        'wdmgd2013': 'sum',
+        'wdmgd2014': 'sum',
+        'wdmgd2015': 'sum',
+        'wdmgd2016': 'sum',
+        'wdmgd2017': 'sum',
+        'wdmgd2018': 'sum',
+        'wdmgd2019': 'sum',
+        'wdmgd2020': 'sum'
     }).reset_index()
     merged_df = merged_df.rename(columns={'county_name': 'county'})
     return merged_df
@@ -256,15 +260,17 @@ def process_file(args):
     if i==2:
         merged_df = ps_cu_wsa_data(df)
         merged_df = ps_cu_merge_and_sum_by_county(gdf_wsa_county, merged_df)
-    if i==3:
+    if i == 3:
+        merged_df = ir_merge_and_sum_by_county(script_dir, df)
+    if i == 4:
         merged_df = ir_merge_and_sum_by_county(script_dir, df)
     # Save the final CSV
-        csv_out_path = os.path.join(script_dir, file_name_out)
-        merged_df.to_csv(csv_out_path, index=False)
+    csv_out_path = os.path.join(script_dir, file_name_out)
+    merged_df.to_csv(csv_out_path, index=False)
     # Save the final shapefile
-        dfs_shape = gdf_county.merge(merged_df, on='county', how='left')
-        shape_out_path = os.path.join(script_dir, file_shapes_out)
-        dfs_shape.to_file(shape_out_path)
+    dfs_shape = gdf_county.merge(merged_df, on='county', how='left')
+    shape_out_path = os.path.join(script_dir, file_shapes_out)
+    dfs_shape.to_file(shape_out_path)
 
 def main():
     """Main function to process all files."""
@@ -274,19 +280,22 @@ def main():
         "published_annual_thermoelectric_water_use_estimates_2008-2020.csv",
         "PS_WSA_annual_Withdrawals_2000_2020.csv",
         "ps_mon_CU_SA.csv",
-        "IR_HUC12_Tot_WD_monthly_2000_2020.csv"
+        "IR_HUC12_Tot_2000_2020.csv",
+        "IR_HUC12_CU_monthly_2000_2020.csv"
     ]
     file_names_out = [
         "TE_county_annual_water_use_estimates_2008-2020.csv",
         "PS_county_annual_Withdrawals_2000_2020.csv",
         "PS_county_annual_consumption.csv",
-        "IR_county_Tot_WD_annual_2000_2020.csv"
+        "IR_county_Tot_WD_annual_2000_2020.csv",
+        "IR_county_CU_monthly_2000_2020.csv"
     ]
     file_shapes_out = [
         "shapes/TE_county_annual_Withdrawals_2008-2020.shp",
         "shapes/PS_county_annual_Withdrawals_2000_2020.shp",
         "shapes/ps_mon_CU_SA.shp",
-        "IR_county_Tot_WD_annual_2000_2020.shp"
+        "shapes/IR_county_Tot_WD_annual_2000_2020.shp"
+        "shapes/IR_county_Tot_CU_annual_2000_2020.shp"
     ]
     # Load shapefiles
     gdf_county, gdf_wsa_county = load_shapefiles(script_dir)
