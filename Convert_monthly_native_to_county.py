@@ -124,6 +124,7 @@ def ir_merge_and_sum_by_county(script_dir, df):
     file_name="IR_huc12_to_us_counties.csv"
     file_path=os.path.join(script_dir, file_name)
     df_crosswalk = fast_read_csv(file_path)
+    df_crosswalk.replace([999, 888], 0.0, inplace=True)
     #convert huc12 columns of ir to single column for each huc12, year, month
     df = pd.melt(df, id_vars=['year', 'month'], var_name='huc12', value_name='wd_mgd')
     #remove no data flags
@@ -139,14 +140,22 @@ def ir_merge_and_sum_by_county(script_dir, df):
     # convert back to mg per month
     df['wd_mgd'] = df['wd_mgd'] / 12.
     df['wd_mgd'] = df['wd_mgd'] / df['days_in_month']
-    merged_df = df_crosswalk.merge(df, on='huc12', how='inner')
+    # Pivot the DataFrame to create columns for each year with wd_mgd values
+    df = df.pivot(index='huc12', columns='year', values='wd_mgd')
+    # Rename the columns to include 'wdmgd_' prefix
+    df.columns = [f'wdmgd{int(col)}' for col in df.columns]
+    # Reset index to make huc12 a column instead of an index
+    df.reset_index(inplace=True)
+    merged_df = df_crosswalk.merge(df[['huc12'] + [f'wdmgd{year}' for year in range(2000, 2021)]],
+                                   on='huc12',
+                                   how='inner')
     # Columns to keep
     for year in range(2000, 2021):
         frac_column = f"frac_area_{year}"
         wd_column = f"wdmgd{year}"
 
         # Multiply the fraction column by the wd_mgd column
-        merged_df[wd_column] = merged_df[frac_column] * merged_df['wd_mgd']
+        merged_df[wd_column] = merged_df[frac_column] * merged_df[wd_column]
 
         # Drop the original fraction column
         merged_df.drop(columns=[frac_column], inplace=True)
@@ -294,7 +303,7 @@ def main():
         "shapes/TE_county_annual_Withdrawals_2008-2020.shp",
         "shapes/PS_county_annual_Withdrawals_2000_2020.shp",
         "shapes/ps_mon_CU_SA.shp",
-        "shapes/IR_county_Tot_WD_annual_2000_2020.shp"
+        "shapes/IR_county_Tot_WD_annual_2000_2020.shp",
         "shapes/IR_county_Tot_CU_annual_2000_2020.shp"
     ]
     # Load shapefiles
