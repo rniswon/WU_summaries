@@ -211,6 +211,7 @@ def ps_merge_and_sum_by_county(gdf_wsa_county, df):
     # Calc total withdrawal from per capita, population, and area fraction in county
     merged_df['wdgpd']=merged_df['pop']*merged_df['est_per_capita']*merged_df['fraction']
     merged_df['pop'] = merged_df['pop'] * merged_df['fraction']
+    merged_df['wdgpd'] = merged_df['wdgpd']/1000000.
     merged_df = merged_df.rename(columns={'state_name': 'state'})
     # Columns to keep
     columns_to_keep = ['year', 'county', 'state', 'wdgpd']
@@ -246,13 +247,14 @@ def ps_cu_merge_and_sum_by_county(gdf_wsa_county, df):
         'state': 'first',  # Assuming you want to keep the first state within each group
         'cu_mgd': 'sum',
     }).reset_index()
+    merged_df['cu_mgd'] = merged_df['cu_mgd'] / 1000000.
     # Order the rows by ascending order of the 'year' column
     merged_df = merged_df.sort_values(by=['county', 'state']).reset_index(drop=True)
     # Pivot for wd_mgd
     # Pivot the DataFrame
     merged_df = merged_df.pivot(index=['county', 'state'], columns='year', values='cu_mgd')
     # Flatten the columns and rename them
-    merged_df.columns = [f'cu_mgd_{col}' for col in merged_df.columns]
+    merged_df.columns = [f'cumgd{col}' for col in merged_df.columns]
     # Reset the index to make 'county' and 'state' columns again
     merged_df = merged_df.reset_index()
     return merged_df
@@ -300,11 +302,11 @@ def main():
         "IR_county_CU_monthly_2000_2020.csv"
     ]
     file_shapes_out = [
-        "shapes/TE_county_annual_Withdrawals_2008-2020.shp",
-        "shapes/PS_county_annual_Withdrawals_2000_2020.shp",
-        "shapes/ps_mon_CU_SA.shp",
-        "shapes/IR_county_Tot_WD_annual_2000_2020.shp",
-        "shapes/IR_county_Tot_CU_annual_2000_2020.shp"
+        "shapes/TE_county_annual_WD_CU_annual_2008_2020.shp",
+        "shapes/PS_county_annual_WD_annual_2000_2020.shp",
+        "shapes/PS_county_annual_CU_annual_2000_2020.shp",
+        "shapes/IR_county_annual_WD_annual_2000_2020.shp",
+        "shapes/IR_county_annual_CU_annual_2000_2020.shp"
     ]
     # Load shapefiles
     gdf_county, gdf_wsa_county = load_shapefiles(script_dir)
